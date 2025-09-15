@@ -44,5 +44,8 @@ logs
 # Prisma
 prisma/migrations/
 
+# TypeScript
+*.tsbuildinfo
+
 # Temporary files
 /tmp

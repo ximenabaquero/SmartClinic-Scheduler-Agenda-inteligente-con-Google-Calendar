@@ -1,0 +1,135 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      UserRole @default(DOCTOR)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Google Calendar integration
+  googleTokens      GoogleToken?
+  googleCalendarId  String?
+
+  // Relations
+  appointments      Appointment[]
+  availability      Availability[]
+  services          Service[]
+
+  @@map("users")
+}
+
+model GoogleToken {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  accessToken  String
+  refreshToken String?
+  tokenType    String   @default("Bearer")
+  expiresAt    DateTime?
+  scope        String?
+  syncToken    String?  // For syncing changes from Google Calendar
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("google_tokens")
+}
+
+model Service {
+  id          String @id @default(cuid())
+  name        String
+  description String?
+  duration    Int    // in minutes
+  buffer      Int    @default(15) // buffer time in minutes
+  color       String @default("#3174ad")
+  active      Boolean @default(true)
+  doctorId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  doctor       User          @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@map("services")
+}
+
+model Availability {
+  id        String      @id @default(cuid())
+  doctorId  String
+  dayOfWeek Int         // 0 = Sunday, 1 = Monday, etc.
+  startTime String      // "09:00"
+  endTime   String      // "17:00"
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  doctor User @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, dayOfWeek])
+  @@map("availability")
+}
+
+model Patient {
+  id          String @id @default(cuid())
+  email       String @unique
+  firstName   String
+  lastName    String
+  phone       String?
+  dateOfBirth DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  appointments Appointment[]
+
+  @@map("patients")
+}
+
+model Appointment {
+  id               String            @id @default(cuid())
+  patientId        String
+  doctorId         String
+  serviceId        String
+  status           AppointmentStatus @default(PENDING)
+  scheduledAt      DateTime
+  duration         Int               // in minutes
+  notes            String?
+  googleEventId    String?           // ID from Google Calendar
+  preferredTimes   Json?             // Store preferred time ranges
+  suggestedSlots   Json?             // Store suggested slots
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor  User    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@map("appointments")
+}
+
+enum UserRole {
+  ADMIN
+  DOCTOR
+  STAFF
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
